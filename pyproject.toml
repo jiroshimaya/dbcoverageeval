@@ -1,13 +1,32 @@
 [project]
 name = "dbcoverageeval"
 version = "0.1.0"
-description = "Add your description here"
+description = "質問カバー率測定パイプライン - ドキュメントセットと質問リストから質問がドキュメントでカバーされるか判定する"
 readme = "README.md"
 authors = [
     { name = "GitHub Actions", email = "actions@github.com" }
 ]
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "faiss-cpu>=1.7.4",
+    "openai>=1.76.0",
+    "google-generativeai>=0.3.0",
+    "anthropic>=0.18.0",
+    "unstructured>=0.10.30",
+    "pdfplumber>=0.10.3",
+    "python-docx>=0.8.11",
+    "pandas>=2.0.0",
+    "tiktoken>=0.5.0",
+    "typer>=0.9.0",
+    "rich>=13.4.0",
+    "pyyaml>=6.0",
+    "duckdb>=0.9.1",
+    "pyarrow>=14.0.0",
+    "pytest>=8.3.5",
+]
+
+[project.scripts]
+covercli = "dbcoverageeval.cli:app"
 
 [build-system]
 requires = ["hatchling"]
