@@ -16,6 +16,7 @@ dependencies = [
     "langchain-openai>=0.3.14",
     "langchain-text-splitters>=0.3.8",
     "pandas>=2.2.3",
+    "pydantic-settings>=2.9.1",
     "pypdf>=5.4.0",
     "pytest>=8.3.5",
     "requests>=2.32.3",
