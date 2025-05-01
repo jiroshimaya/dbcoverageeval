@@ -37,15 +37,32 @@ def load_pdf_files(docs_path: str | Path) -> List[Document]:
         document.metadata["id"] = str(uuid.uuid4())
     return documents
 
-def ingest_documents(documents: List[Document]) -> Chroma:
-    db = Chroma.from_documents(
-        documents=documents,
-        embedding=OpenAIEmbeddings(),
-        persist_directory="./chroma_db"
-    )
+def load_or_create_db(persist_dir: str = "./chroma_db") -> Chroma:
+    """
+    データベースをロードするか、新しく作成する
+    """
+    db = Chroma(embedding_function=OpenAIEmbeddings(), persist_directory=persist_dir)
     return db
 
-def ingest(docs_path: str | Path) -> Chroma:
+def add_documents(db: Chroma, documents: List[Document]) -> Chroma:
+    """
+    ドキュメントを新しいものだけ追加する
+    """
+    all_documents = set(db._collection.get()["documents"])
+    new_documents = [doc for doc in documents if doc.page_content not in all_documents]
+    
+    if new_documents:
+        db.add_documents(documents=new_documents)
+    return db
+
+def reset_db(db: Chroma) -> Chroma:
+    """
+    データベースをリセットする
+    """
+    db.reset_collection()
+    return db
+
+def ingest(docs_path: str | Path, initialize: bool = False) -> Chroma:
     """
     ドキュメントを取り込み、DBに保存する
     
@@ -56,7 +73,10 @@ def ingest(docs_path: str | Path) -> Chroma:
     docs_path = Path(docs_path)
     
     documents = load_pdf_files(docs_path)
-    db = ingest_documents(documents)
+    db = load_or_create_db()
+    if initialize:
+        db = reset_db(db)
+    db = add_documents(db, documents)
     
     
     return db
