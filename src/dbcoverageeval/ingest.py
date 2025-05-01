@@ -40,7 +40,8 @@ def load_pdf_files(docs_path: str | Path) -> List[Document]:
 def ingest_documents(documents: List[Document]) -> Chroma:
     db = Chroma.from_documents(
         documents=documents,
-        embedding=OpenAIEmbeddings()
+        embedding=OpenAIEmbeddings(),
+        persist_directory="./chroma_db"
     )
     return db
 
@@ -56,5 +57,6 @@ def ingest(docs_path: str | Path) -> Chroma:
     
     documents = load_pdf_files(docs_path)
     db = ingest_documents(documents)
+    
     
     return db
