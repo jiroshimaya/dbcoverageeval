@@ -27,6 +27,10 @@ class Report(BaseModel):
     summary: Dict[str, Any]
     details: list[DetailedResult]
     documents: Dict[str, Any]
+    
+    def save(self, output_path: str):
+        with open(output_path, "w") as f:
+            json.dump(self.model_dump(), f, indent = 2, ensure_ascii=False)
 
 def calculate_metrics(judge_results: list[DetailedJudgeResult]) -> Report:
     """
