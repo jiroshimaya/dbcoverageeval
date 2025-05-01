@@ -37,7 +37,7 @@ def load_pdf_files(docs_path: str | Path) -> List[Document]:
         document.metadata["id"] = str(uuid.uuid4())
     return documents
 
-def load_or_create_db(persist_dir: str = "./chroma_db") -> Chroma:
+def load_or_create_db(persist_dir: str) -> Chroma:
     """
     データベースをロードするか、新しく作成する
     """
@@ -62,7 +62,7 @@ def reset_db(db: Chroma) -> Chroma:
     db.reset_collection()
     return db
 
-def ingest(docs_path: str | Path, initialize: bool = False) -> Chroma:
+def ingest(docs_path: str | Path, initialize: bool = False, persist_dir: str = "./chroma_db") -> Chroma:
     """
     ドキュメントを取り込み、DBに保存する
     
@@ -73,7 +73,7 @@ def ingest(docs_path: str | Path, initialize: bool = False) -> Chroma:
     docs_path = Path(docs_path)
     
     documents = load_pdf_files(docs_path)
-    db = load_or_create_db()
+    db = load_or_create_db(persist_dir)
     if initialize:
         db = reset_db(db)
     db = add_documents(db, documents)
