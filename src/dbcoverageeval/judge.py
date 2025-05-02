@@ -34,7 +34,7 @@ def judge_search_result(question: str, documents: list[Document]) -> JudgeResult
     
     chain = JUDGE_PROMPT_TEMPLATE | model
     
-    result = chain.invoke({"question": question, "docs_text": "\n".join([doc.page_content for doc in documents])})
+    result = chain.invoke({"question": question, "docs_text": "\n\n".join([doc.page_content for doc in documents])})
     
     detailed_result = DetailedJudgeResult(question=question, judge=result.judge, reason=result.reason, search_results=documents)
     
