@@ -12,7 +12,7 @@ import tqdm
 
 # 保存用のディレクトリを作成
 CACHE_DIR = Path("cache/k_recall")
-CACHE_DIR.mkdir(exist_ok=True)
+CACHE_DIR.mkdir(exist_ok=True, parents=True)
 
 
 def get_openai_embeddings(
@@ -64,24 +64,22 @@ def get_openai_embeddings(
 
 def get_huggingface_embeddings(
     texts: list[str],
-    *,
-    model_name: str = "intfloat/multilingual-e5-base",
-    model_kwargs: dict[str, Any] = None,
-    encode_kwargs: dict[str, Any] = {"normalize_embeddings": False},
 ) -> np.ndarray:
-    from langchain_huggingface import HuggingFaceEmbeddings
+    from sentence_transformers import SentenceTransformer
+    
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    if model_kwargs is None:
-        model_kwargs = {}
-    if model_kwargs.get("device") is None:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        model_kwargs["device"] = device
-
-    client = HuggingFaceEmbeddings(
-        model_name=model_name,
-        model_kwargs=model_kwargs,
-        encode_kwargs=encode_kwargs,
+    model = SentenceTransformer(
+        "intfloat/multilingual-e5-base",
+        device=device
     )
+    embs = model.encode(texts,
+                        batch_size=128,       # 16 GB VRAM なら目安は 96–128
+                        normalize_embeddings=True,
+                        show_progress_bar=True,
+                        )
+
+    return np.array(embs)
 
 
 def load_or_create_datasets() -> Tuple[datasets.Dataset, datasets.Dataset]:
@@ -116,25 +114,50 @@ def load_or_create_embeddings(
 ) -> Tuple[np.ndarray, np.ndarray]:
     corpus_path = CACHE_DIR / "corpus_embeddings.pkl"
     query_path = CACHE_DIR / "queries_embeddings.pkl"
-    if corpus_path.exists() and query_path.exists():
-        print("キャッシュされた埋め込みを読み込みます...")
+    batch_size = 100000
+
+    # --- Corpus Embeddings ---
+    if corpus_path.exists():
+        print("キャッシュされた埋め込みを読み込みます... (corpus)")
         with open(corpus_path, "rb") as f:
             corpus_embeddings = pickle.load(f)
+    else:
+        print("埋め込みを計算します... (corpus)")
+        corpus_texts = [f'passage: {item["title"]} {item["text"]}' for item in full_corpus]
+        num_batches = (len(corpus_texts) + batch_size - 1) // batch_size
+        batch_emb_files = []
+        for i in range(num_batches):
+            batch_file = CACHE_DIR / f"corpus_embeddings_part_{i}.pkl"
+            batch_emb_files.append(batch_file)
+            if batch_file.exists():
+                print(f"バッチ {i}/{num_batches} は既に存在します。スキップします。")
+                continue
+            print(f"バッチ {i}/{num_batches} を計算中...")
+            batch_texts = corpus_texts[i*batch_size:(i+1)*batch_size]
+            batch_embs = get_huggingface_embeddings(batch_texts)
+            with open(batch_file, "wb") as f:
+                pickle.dump(batch_embs, f)
+        # 全バッチを結合
+        all_embs = []
+        for batch_file in tqdm.tqdm(batch_emb_files, desc="load corpus embeddings"):
+            with open(batch_file, "rb") as f:
+                all_embs.append(pickle.load(f))
+        corpus_embeddings = np.concatenate(all_embs, axis=0)
+        with open(corpus_path, "wb") as f:
+            pickle.dump(corpus_embeddings, f)
+
+    # --- Query Embeddings ---
+    if query_path.exists():
+        print("キャッシュされた埋め込みを読み込みます... (query)")
         with open(query_path, "rb") as f:
             query_embeddings = pickle.load(f)
     else:
-        print("埋め込みを計算します...")
-        corpus_embeddings = get_openai_embeddings(
-            full_corpus["text"], max_tokens_per_batch=4500000
-        )
-        query_embeddings = get_openai_embeddings(
-            full_ds["query"], max_tokens_per_batch=4500000
-        )
-        print("埋め込みをキャッシュに保存します...")
-        with open(corpus_path, "wb") as f:
-            pickle.dump(corpus_embeddings, f)
+        print("埋め込みを計算します... (query)")
+        query_texts = [f'query: {item["query"]}' for item in full_ds]
+        query_embeddings = get_huggingface_embeddings(query_texts)
         with open(query_path, "wb") as f:
             pickle.dump(query_embeddings, f)
+
     return corpus_embeddings, query_embeddings
 
 
@@ -146,13 +169,9 @@ def main():
     )
 
     # 正解文書の数を確認
-    positive_docids = get_positive_docids(sample_ds)
-    positive_docs = [doc for doc in sample_corpus if doc["docid"] in positive_docids]
 
     print(f"コーパスサイズ: {len(sample_corpus)}")
     print(f"クエリ数: {len(sample_ds)}")
-    print(f"正解文書数: {len(positive_docs)}")
-    print(f"負例文書数: {len(sample_corpus) - len(positive_docs)}")
 
     # サンプルデータの内容確認
     print("\nサンプルクエリ:")
